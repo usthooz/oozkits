@@ -1,11 +1,11 @@
-// Based on `github.com/usthooz/redis`
+// Based on `github.com/go-redis/redis`v6.6.0
 package redis
 
 import (
 	"fmt"
 	"time"
 
-	"github.com/usthooz/redis"
+	"github.com/go-redis/redis"
 )
 
 // redis deploy type
