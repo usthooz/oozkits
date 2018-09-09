@@ -1,4 +1,4 @@
-package oozerr
+package ozerr
 
 import (
 	"encoding/json"
