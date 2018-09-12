@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jmoiron/sqlx"
-	"github.com/jmoiron/sqlx/reflectx"
 	"github.com/usthooz/gutil"
 	"github.com/usthooz/oozkits/model/redis"
+	"github.com/usthooz/sqlx"
+	"github.com/usthooz/sqlx/reflectx"
 )
 
 // DB mysql db and cache redi.
@@ -162,5 +162,15 @@ func (d *DB) RegisterCacheDB(ormStruct Cacheable, expire time.Duration) (*CacheD
 		module:            module,
 	}
 	d.cacheDBs[tableName] = c
+	return c, nil
+}
+
+// GetCacheDB
+func (d *DB) GetCacheDB(tableName string) (*CacheDB, error) {
+	// use table name get cache db
+	c, ok := d.cacheDBs[tableName]
+	if !ok {
+		return nil, fmt.Errorf("has not called *DB.RegCacheableDB() to register: %s", tableName)
+	}
 	return c, nil
 }
