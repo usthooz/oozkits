@@ -168,3 +168,31 @@ func NewClient(cfg *Config) (*Client, error) {
 	}
 	return c, nil
 }
+
+// Redis nil reply, .e.g. when key does not exist.
+const Nil = redis.Nil
+
+// IsRedisNil Is the redis nil reply? .e.g. when key does not exist.
+func IsRedisNil(err error) bool {
+	return redis.Nil == err
+}
+
+// 注意：每10毫秒尝试1次上锁，且上锁后默认锁定1分钟
+func (c *Client) LockCallback(lockKey string, callback func(), maxLock ...time.Duration) error {
+	var d = time.Minute
+	if len(maxLock) > 0 {
+		d = maxLock[0]
+	}
+	// lock
+	for lockOk, err := c.SetNX(lockKey, "", d).Result(); !lockOk; lockOk, err = c.SetNX(lockKey, "", d).Result() {
+		if err != nil && !IsRedisNil(err) {
+			return err
+		}
+		time.Sleep(time.Millisecond * 10)
+	}
+	// unlock
+	defer c.Del(lockKey)
+	// do
+	callback()
+	return nil
+}
