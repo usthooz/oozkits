@@ -278,3 +278,124 @@ func (c *CacheDB) GetCache(structPtr Cacheable, fields ...string) error {
 	})
 	return err
 }
+
+// GetCacheByWhere
+func (c *CacheableDB) GetCacheByWhere(structPtr Cacheable, whereNamedCond string) error {
+	cacheKey, whereCond, err := c.createCacheKeyByWhere(structPtr, whereNamedCond)
+	if err != nil {
+		return err
+	}
+	structElemValue := reflect.ValueOf(structPtr).Elem()
+	if c.DB.dbConfig.NoCache {
+		// read db
+		return c.DB.Get(structPtr, c.createGetQueryByWhere(whereCond), cacheKey.FieldValues...)
+	}
+	var (
+		key                 = cacheKey.Key
+		gettedFirstCacheKey bool
+		b                   []byte
+		exist               bool
+	)
+	// read secondary cache
+	b, err = c.Cache.Get(key).Bytes()
+	if err == nil {
+		key = goutil.BytesToString(b)
+		gettedFirstCacheKey = true
+	} else if !redis.IsRedisNil(err) {
+		return err
+	}
+	// get first cache
+	if gettedFirstCacheKey {
+		// clean
+		c.cleanDestCacheable(structElemValue)
+		exist, err = c.getFirstCache(key, structPtr)
+		if err != nil {
+			return err
+		}
+		if exist {
+			// check secondary cache
+			cacheKey2, _, _ := c.createCacheKeyByWhere(structPtr, whereNamedCond)
+			if cacheKey2.Key != cacheKey.Key {
+				c.Cache.Del(cacheKey.Key)
+			} else {
+				return nil
+			}
+		}
+	}
+	// this lock call back
+	c.Cache.LockCallback("lock_"+key, func() {
+	FIRST:
+		if gettedFirstCacheKey {
+			exist, err = c.getFirstCache(key, structPtr)
+			if exist {
+				err = nil
+				return
+			}
+			if err != nil {
+				return
+			}
+		} else {
+			b, err = c.Cache.Get(key).Bytes()
+			if err == nil {
+				key = goutil.BytesToString(b)
+				gettedFirstCacheKey = true
+				goto FIRST
+			} else if !redis.IsRedisNil(err) {
+				return
+			}
+		}
+		// read db
+		err = c.DB.Get(structPtr, c.createGetQueryByWhere(whereCond), cacheKey.FieldValues...)
+		if err != nil {
+			return
+		}
+		key, err = c.createPrikey(structElemValue)
+		if err != nil {
+			ozlog.Errorf("CacheGetByWhere(): createPrikey: %s", err.Error())
+			err = nil
+			return
+		}
+		// write cache
+		data, _ := json.Marshal(structPtr)
+		err = c.Cache.Set(key, data, c.cacheExpiration).Err()
+		if err == nil && !cacheKey.isPriKey {
+			err = c.Cache.Set(cacheKey.Key, key, c.cacheExpiration).Err()
+		}
+		if err != nil {
+			ozlog.Errorf("CacheGetByWhere(): %s", err.Error())
+			err = nil
+		}
+	})
+	return err
+}
+
+func (c *CacheableDB) PutCache(srcStructPtr Cacheable, fields ...string) error {
+	if c.DB.dbConfig.NoCache {
+		return nil
+	}
+	cacheKey, structElemValue, err := c.CreateCacheKey(srcStructPtr, fields...)
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(srcStructPtr)
+	if err != nil {
+		return err
+	}
+
+	key := cacheKey.Key
+
+	if cacheKey.isPriKey {
+		return c.Cache.Set(key, data, c.cacheExpiration).Err()
+	}
+
+	// secondary cache
+	key, err = c.createPrikey(structElemValue)
+	if err != nil {
+		return err
+	}
+	err = c.Cache.Set(key, data, c.cacheExpiration).Err()
+	if err != nil {
+		return err
+	}
+	return c.Cache.Set(cacheKey.Key, key, c.cacheExpiration).Err()
+}
