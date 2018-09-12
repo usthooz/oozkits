@@ -279,14 +279,40 @@ func (c *CacheDB) GetCache(structPtr Cacheable, fields ...string) error {
 	return err
 }
 
+// createCacheKeyByWhere
+func (c *CacheDB) createCacheKeyByWhere(structPtr Cacheable, whereNamedCond string) (CacheKey, string, error) {
+	whereCond, values, err := c.BindNamed(whereNamedCond, structPtr)
+	if err != nil {
+		return emptyCacheKey, whereCond, err
+	}
+	bs, err := json.Marshal(values)
+	if err != nil {
+		return emptyCacheKey, whereCond, errors.New("CreateCacheKeyByFields(): " + err.Error())
+	}
+	return CacheKey{
+		Key:         c.module.GetKey(whereCond + goutil.BytesToString(bs)),
+		FieldValues: values,
+		isPriKey:    false,
+	}, whereCond, nil
+}
+
+// createGetQueryByWhere
+func (c *CacheDB) createGetQueryByWhere(whereCond string) string {
+	var queryAll = "SELECT"
+	for _, col := range c.cols {
+		queryAll += " `" + col + "`,"
+	}
+	return queryAll[:len(queryAll)-1] + " FROM `" + c.tableName + "` WHERE " + whereCond + " LIMIT 1;"
+}
+
 // GetCacheByWhere
-func (c *CacheableDB) GetCacheByWhere(structPtr Cacheable, whereNamedCond string) error {
+func (c *CacheDB) GetCacheByWhere(structPtr Cacheable, whereNamedCond string) error {
 	cacheKey, whereCond, err := c.createCacheKeyByWhere(structPtr, whereNamedCond)
 	if err != nil {
 		return err
 	}
 	structElemValue := reflect.ValueOf(structPtr).Elem()
-	if c.DB.dbConfig.NoCache {
+	if c.DB.dbConfig.OpenCache {
 		// read db
 		return c.DB.Get(structPtr, c.createGetQueryByWhere(whereCond), cacheKey.FieldValues...)
 	}
@@ -307,7 +333,7 @@ func (c *CacheableDB) GetCacheByWhere(structPtr Cacheable, whereNamedCond string
 	// get first cache
 	if gettedFirstCacheKey {
 		// clean
-		c.cleanDestCacheable(structElemValue)
+		c.cleanDestCache(structElemValue)
 		exist, err = c.getFirstCache(key, structPtr)
 		if err != nil {
 			return err
@@ -357,9 +383,9 @@ func (c *CacheableDB) GetCacheByWhere(structPtr Cacheable, whereNamedCond string
 		}
 		// write cache
 		data, _ := json.Marshal(structPtr)
-		err = c.Cache.Set(key, data, c.cacheExpiration).Err()
+		err = c.Cache.Set(key, data, c.cacheExpire).Err()
 		if err == nil && !cacheKey.isPriKey {
-			err = c.Cache.Set(cacheKey.Key, key, c.cacheExpiration).Err()
+			err = c.Cache.Set(cacheKey.Key, key, c.cacheExpire).Err()
 		}
 		if err != nil {
 			ozlog.Errorf("CacheGetByWhere(): %s", err.Error())
@@ -369,33 +395,51 @@ func (c *CacheableDB) GetCacheByWhere(structPtr Cacheable, whereNamedCond string
 	return err
 }
 
-func (c *CacheableDB) PutCache(srcStructPtr Cacheable, fields ...string) error {
-	if c.DB.dbConfig.NoCache {
+// DeleteCache
+func (c *CacheDB) DeleteCache(structPtr Cacheable, fields ...string) error {
+	if c.DB.dbConfig.OpenCache {
 		return nil
 	}
-	cacheKey, structElemValue, err := c.CreateCacheKey(srcStructPtr, fields...)
+	cacheKey, _, err := c.CreateCacheKey(structPtr, fields...)
 	if err != nil {
 		return err
 	}
-	data, err := json.Marshal(srcStructPtr)
-	if err != nil {
-		return err
-	}
-
-	key := cacheKey.Key
-
-	if cacheKey.isPriKey {
-		return c.Cache.Set(key, data, c.cacheExpiration).Err()
-	}
-
+	var keys = []string{cacheKey.Key}
 	// secondary cache
+	if !cacheKey.isPriKey {
+		// get first cache key
+		firstKey, err := c.Cache.Get(cacheKey.Key).Result()
+		if err == nil {
+			keys = append(keys, firstKey)
+		}
+	}
+	return c.Cache.Del(keys...).Err()
+}
+
+// PutCache
+func (c *CacheDB) PutCache(structPtr Cacheable, fields ...string) error {
+	if c.DB.dbConfig.OpenCache {
+		return nil
+	}
+	cacheKey, structElemValue, err := c.CreateCacheKey(structPtr, fields...)
+	if err != nil {
+		return err
+	}
+	data, err := json.Marshal(structPtr)
+	if err != nil {
+		return err
+	}
+	key := cacheKey.Key
+	if cacheKey.isPriKey {
+		return c.Cache.Set(key, data, c.cacheExpire).Err()
+	}
 	key, err = c.createPrikey(structElemValue)
 	if err != nil {
 		return err
 	}
-	err = c.Cache.Set(key, data, c.cacheExpiration).Err()
+	err = c.Cache.Set(key, data, c.cacheExpire).Err()
 	if err != nil {
 		return err
 	}
-	return c.Cache.Set(cacheKey.Key, key, c.cacheExpiration).Err()
+	return c.Cache.Set(cacheKey.Key, key, c.cacheExpire).Err()
 }
