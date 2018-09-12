@@ -18,7 +18,7 @@ type Config struct {
 	// ConnMaxLifetime time: second
 	ConnMaxLifetime int64 `yaml:"conn_max_lifetime"`
 	// db redis cache
-	OpenCache bool `yaml:"open_cache"`
+	CloseCache bool `yaml:"close_cache"`
 }
 
 // NewConfig creates db default config.

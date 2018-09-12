@@ -29,7 +29,7 @@ func Connect(dbConfig *Config, redisConfig *redis.Config) (*DB, error) {
 		cache *redis.Client
 	)
 	// open db cache.
-	if !dbConfig.OpenCache || redisConfig != nil {
+	if !dbConfig.CloseCache || redisConfig != nil {
 		var (
 			err error
 		)
@@ -97,7 +97,7 @@ func (d *DB) RegisterCacheDB(ormStruct Cacheable, expire time.Duration) (*CacheD
 		return nil, fmt.Errorf("This table cache already registered, table->%s.", tableName)
 	}
 	// this is use cache?
-	if !d.dbConfig.OpenCache && d.Cache == nil {
+	if !d.dbConfig.CloseCache && d.Cache == nil {
 		return nil, ErrCacheIsNil
 	}
 	var (

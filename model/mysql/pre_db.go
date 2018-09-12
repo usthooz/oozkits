@@ -33,7 +33,7 @@ func (p *PreDB) InitByRdsCfg(dbConfig *Config, redisConfig *redis.Config) (err e
 	var (
 		cacheClient *redis.Client
 	)
-	if !dbConfig.OpenCache && redisConfig != nil {
+	if !dbConfig.CloseCache && redisConfig != nil {
 		cacheClient, err = redis.NewClient(redisConfig)
 		if err != nil {
 			return err
@@ -53,7 +53,7 @@ func (p *PreDB) InitByRdsClient(dbConfig *Config, redisCient *redis.Client) (err
 	p.DB.SetConnMaxLifetime(time.Duration(dbConfig.ConnMaxLifetime) * time.Second)
 	p.DB.Mapper = reflectx.NewMapperFunc("json", gutil.FieldSnakeString)
 	p.DB.dbConfig = dbConfig
-	if !dbConfig.OpenCache && redisCient != nil {
+	if !dbConfig.CloseCache && redisCient != nil {
 		p.DB.Cache = redisCient
 		p.DB.rdsConfig = redisCient.GetConfig()
 	}

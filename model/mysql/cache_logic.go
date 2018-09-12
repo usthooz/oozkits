@@ -186,7 +186,7 @@ func (c *CacheDB) GetCache(structPtr Cacheable, fields ...string) error {
 		return err
 	}
 	// use redis cache
-	if c.DB.dbConfig.OpenCache {
+	if c.DB.dbConfig.CloseCache {
 		// get cache
 		return c.DB.Get(structPtr, c.CreateGetQuery(fields...), cacheKey.FieldValues...)
 	}
@@ -312,7 +312,7 @@ func (c *CacheDB) GetCacheByWhere(structPtr Cacheable, whereNamedCond string) er
 		return err
 	}
 	structElemValue := reflect.ValueOf(structPtr).Elem()
-	if c.DB.dbConfig.OpenCache {
+	if c.DB.dbConfig.CloseCache {
 		// read db
 		return c.DB.Get(structPtr, c.createGetQueryByWhere(whereCond), cacheKey.FieldValues...)
 	}
@@ -397,7 +397,7 @@ func (c *CacheDB) GetCacheByWhere(structPtr Cacheable, whereNamedCond string) er
 
 // DeleteCache
 func (c *CacheDB) DeleteCache(structPtr Cacheable, fields ...string) error {
-	if c.DB.dbConfig.OpenCache {
+	if c.DB.dbConfig.CloseCache {
 		return nil
 	}
 	cacheKey, _, err := c.CreateCacheKey(structPtr, fields...)
@@ -418,7 +418,7 @@ func (c *CacheDB) DeleteCache(structPtr Cacheable, fields ...string) error {
 
 // PutCache
 func (c *CacheDB) PutCache(structPtr Cacheable, fields ...string) error {
-	if c.DB.dbConfig.OpenCache {
+	if !c.DB.dbConfig.CloseCache {
 		return nil
 	}
 	cacheKey, structElemValue, err := c.CreateCacheKey(structPtr, fields...)
