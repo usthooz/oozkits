@@ -169,6 +169,11 @@ func NewClient(cfg *Config) (*Client, error) {
 	return c, nil
 }
 
+// GetConfig returns config.
+func (c *Client) GetConfig() *Config {
+	return c.cfg
+}
+
 // Redis nil reply, .e.g. when key does not exist.
 const Nil = redis.Nil
 
