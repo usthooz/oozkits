@@ -23,7 +23,7 @@ var (
 
 // TableName
 func (*OozTest) TableName() string {
-	return "ooz_test"
+	return "ooztest"
 }
 
 // isZeroPrimaryKey is pri
@@ -50,7 +50,7 @@ func InsertOozTest(_obj *OozTest, tx ...*sqlx.Tx) (int64, error) {
 			query = "INSERT INTO `ooztest` (`id`,`name`) VALUES (:id,:name);"
 		}
 		r, err := tx.NamedExec(query, _obj)
-		if isZeroPrimaryKey && err != nil {
+		if isZeroPrimaryKey {
 			_obj.Id, err = r.LastInsertId()
 		}
 		return err
@@ -71,6 +71,7 @@ func UpsetOozTest(_obj *OozTest, _updateFields []string, tx ...*sqlx.Tx) (int64,
 			// update
 			query = "INSERT INTO `ooztest` (`id`,`name`) VALUES (:id,:name)"
 		}
+		query += " ON DUPLICATE KEY UPDATE "
 		if len(_updateFields) == 0 {
 			// update all
 			query += "`name`=VALUES(`name`);"
@@ -82,6 +83,7 @@ func UpsetOozTest(_obj *OozTest, _updateFields []string, tx ...*sqlx.Tx) (int64,
 			if query[len(query)-1] != ',' {
 				return nil
 			}
+			query += "`deleted`=0;"
 		}
 		r, err := tx.NamedExec(query, _obj)
 		if isZeroPrimaryKey && err == nil {
@@ -108,18 +110,23 @@ func UpsetOozTest(_obj *OozTest, _updateFields []string, tx ...*sqlx.Tx) (int64,
 // UpdateOozTestByPrimary
 func UpdateOozTestByPrimary(_obj *OozTest, _updateFields []string, tx ...*sqlx.Tx) error {
 	err := oozTestDB.Callback(func(tx sqlx.DbAndTx) error {
-		query := "UPDATE `ooztest` SET"
+		query := "UPDATE `ooztest` SET "
 		if len(_updateFields) == 0 {
 			// update all
-			query += "`name`:=name LIMIT 1;"
+			query += "`name`:=name WHERE `id`=:id LIMIT 1;"
 		} else {
 			// upset
-			for _, field := range _updateFields {
-				query += "`" + field + "`=VALUES(`" + field + "`),"
+			for i, field := range _updateFields {
+				if i == len(_updateFields)-1 {
+					query += "`" + field + "`=:" + field
+				} else {
+					query += "`" + field + "`=:" + field + ","
+				}
 			}
 			if query[len(query)-1] != ',' {
 				return nil
 			}
+			query += " WHERE `id`=:id LIMIT 1;"
 		}
 		_, err := tx.NamedExec(query, _obj)
 		return err
@@ -180,6 +187,6 @@ func CountOozTestByWhere(whereConds string, args ...interface{}) (int64, error) 
 	var (
 		count int64
 	)
-	err := oozTestDB.Get(&count, "SELECT count(1) FROM `ooz_test` WHERE "+whereConds, args...)
+	err := oozTestDB.Get(&count, "SELECT count(1) FROM `ooztest` WHERE "+whereConds, args...)
 	return count, err
 }
