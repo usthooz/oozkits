@@ -1,11 +1,14 @@
 package mongo
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
+	"github.com/usthooz/gutil"
 	"github.com/usthooz/oozkits/model/redis"
 	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
@@ -68,4 +71,37 @@ func (d *DB) RegisterCacheDB(structPtr Cacheable, cacheExpire time.Duration) (*C
 	// add
 	d.cacheDBs[tableName] = c
 	return c, nil
+}
+
+// GetCacheDB get cacheDB
+func (d *DB) GetCacheDB(tableName string) (*CacheDB, error) {
+	c, exists := d.cacheDBs[tableName]
+	if !exists {
+		return nil, fmt.Errorf("GetCacheDB: has not called *DB.RegisterCacheDB() to register: %s", tableName)
+	}
+	return c, nil
+}
+
+// CacheKey cache key info
+type CacheKey struct {
+	Key   string
+	Value []interface{}
+	isPri bool
+}
+
+var (
+	// emptyCacheKey cache key is empty
+	emptyCacheKey = CacheKey{}
+)
+
+// CreateCacheKeyByFields
+func (c *CacheDB) CreateCacheKeyByFields(fields []string, values []interface{}) (string, error) {
+	if len(fields) != len(values) {
+		return "", fmt.Errorf("CreateCacheKeyByFields: fields not match values")
+	}
+	bs, err := json.Marshal(values)
+	if err != nil {
+		return "", fmt.Errorf("CreateCacheKeyByFields: marshal values err->%v", err)
+	}
+	return c.module.GetKey(strings.Join(fields, "&") + gutil.BytesToString(bs)), nil
 }
