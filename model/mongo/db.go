@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/henrylee2cn/goutil"
 	"github.com/usthooz/gutil"
 	"github.com/usthooz/oozkits/model/redis"
 	mgo "gopkg.in/mgo.v2"
@@ -59,13 +60,13 @@ func (d *DB) RegisterCacheDB(structPtr Cacheable, cacheExpire time.Duration) (*C
 	}
 	// new rds module
 	module := redis.NewModule(d.dbConfig.Database + ":" + tableName)
-	tpl := reflect.TypeOf(structPtr)
+	t := reflect.TypeOf(structPtr)
 	c := &Cacheable{
 		DB:          d,
 		tableName:   tableName,
 		cacheExpire: module.GetKey("_id"),
 		cacheExpire: cacheExpire,
-		typeName:    tpl.String(),
+		typeName:    t.String(),
 		module:      module,
 	}
 	// add
@@ -84,9 +85,9 @@ func (d *DB) GetCacheDB(tableName string) (*CacheDB, error) {
 
 // CacheKey cache key info
 type CacheKey struct {
-	Key   string
-	Value []interface{}
-	isPri bool
+	Key    string
+	Values []interface{}
+	isPri  bool
 }
 
 var (
@@ -104,4 +105,45 @@ func (c *CacheDB) CreateCacheKeyByFields(fields []string, values []interface{}) 
 		return "", fmt.Errorf("CreateCacheKeyByFields: marshal values err->%v", err)
 	}
 	return c.module.GetKey(strings.Join(fields, "&") + gutil.BytesToString(bs)), nil
+}
+
+// CreateCacheKey
+func (c *CacheDB) CreateCacheKey(structPtr Cacheable, fields ...string) (CacheKey, error) {
+	var (
+		t        = reflect.TypeOf(structPtr)
+		typeName = t.String()
+	)
+	// type not match
+	if c.typeName != typeName {
+		return emptyCacheKey, fmt.Errorf("CreateCacheKey(): unmatch Cache: want %s, have %s", c.typeName, typeName)
+	}
+	var (
+		v        = reflect.ValueOf(structPtr).Elem()
+		values   = make([]interface{}, 0, 2)
+		cacheKey string
+	)
+	// fields is required
+	if len(fields) == 0 {
+		return emptyCacheKey, errors.New("CreateCacheKey(): fields is required.")
+	} else {
+		for i, field := range fields {
+			value := v.FieldByName(goutil.CamelString(field))
+			if value.Kind() == reflect.Ptr {
+				value = value.Elem()
+			}
+			values = append(values, value.Interface())
+			fields[i] = gutil.FieldSnakeString(field)
+		}
+		var (
+			err error
+		)
+		cacheKey, err = c.CreateCacheKeyByFields(fields, values)
+		if err != nil {
+			return emptyCacheKey, err
+		}
+	}
+	return CacheKey{
+		Key:    cacheKey,
+		Values: values,
+	}, nil
 }
