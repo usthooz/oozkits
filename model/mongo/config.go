@@ -8,8 +8,8 @@ import (
 
 // Config mongodb config
 type Config struct {
-	// Addr host
-	Addr []string `yaml:"addr"`
+	// Addrs host
+	Addrs []string `yaml:"addr"`
 	// Timeout
 	Timeout time.Duration `yaml:"timeout"`
 	// Database mgo db name
