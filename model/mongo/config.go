@@ -27,7 +27,7 @@ type Config struct {
 // NewConfig
 func NewConfig() *Config {
 	return &Config{
-		Addr:      []string{"127.0.0.1:27017"},
+		Addrs:     []string{"127.0.0.1:27017"},
 		Timeout:   10,
 		Database:  "test",
 		Username:  "root",
