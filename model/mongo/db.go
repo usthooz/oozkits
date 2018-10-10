@@ -60,12 +60,12 @@ func (c *CacheDB) getSession() (*mgo.Session, error) {
 	return c.DB.Session.Clone(), nil
 }
 
-// RegisterCacheDB
+// RegisterCacheDB register cache db
 func (d *DB) RegisterCacheDB(structPtr Cacheable, cacheExpire time.Duration) (*CacheDB, error) {
 	// get table name
 	tableName := structPtr.TableName()
 	if _, exists := d.cacheDBs[tableName]; exists {
-		return nil, fmt.Errorf("Already register mgo table cache,table->%s", tableName)
+		return nil, fmt.Errorf("Already register cache and table name->%s", tableName)
 	}
 	// if open cache and rds is nil
 	if !d.dbConfig.CloseCache && d.Cache == nil {
